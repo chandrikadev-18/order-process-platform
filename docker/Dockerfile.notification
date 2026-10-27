@@ -1,0 +1,30 @@
+# Multi-stage Dockerfile for notification-service
+FROM node:20-alpine AS builder
+
+WORKDIR /usr/src/app
+
+COPY package*.json tsconfig*.json nest-cli.json ./
+RUN npm ci
+
+COPY proto ./proto
+COPY libs ./libs
+COPY apps/notification-service ./apps/notification-service
+
+RUN npx nest build notification-service
+
+# Production runtime stage
+FROM node:20-alpine AS runner
+
+WORKDIR /usr/src/app
+ENV NODE_ENV=production
+
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=builder /usr/src/app/dist/apps/notification-service ./dist/apps/notification-service
+COPY --from=builder /usr/src/app/proto ./proto
+
+# Non-root user for security compliance
+USER node
+
+CMD ["node", "dist/apps/notification-service/apps/notification-service/src/main.js"]

@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package inventory;
+
+// Product entity message representation
+message Product {
+  string id = 1;
+  string sku = 2;
+  string name = 3;
+  double price = 4;
+  int32 stock_quantity = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+// Request to list products with pagination
+message ListProductsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+// Response containing paginated products
+message ListProductsResponse {
+  repeated Product products = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to get a single product by ID
+message GetProductRequest {
+  string id = 1;
+}
+
+// Request to batch-fetch products by IDs
+message GetProductsRequest {
+  repeated string ids = 1;
+}
+
+// Response containing batch-fetched products
+message GetProductsResponse {
+  repeated Product products = 1;
+}
+
+// Request to create a new product
+message CreateProductRequest {
+  string sku = 1;
+  string name = 2;
+  double price = 3;
+  int32 stock_quantity = 4;
+}
+
+// Request to update stock quantity
+message UpdateStockRequest {
+  string id = 1;
+  int32 stock_quantity = 2; // Absolute new stock quantity or increment
+  int32 delta = 3;          // Relative adjustment if stock_quantity is not set
+}
+
+// gRPC Service definition for Inventory Service
+service InventoryService {
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc GetProduct(GetProductRequest) returns (Product);
+  rpc GetProducts(GetProductsRequest) returns (GetProductsResponse);
+  rpc CreateProduct(CreateProductRequest) returns (Product);
+  rpc UpdateStock(UpdateStockRequest) returns (Product);
+}

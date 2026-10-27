@@ -1,0 +1,103 @@
+{
+  "name": "order-process-platform",
+  "version": "0.0.1",
+  "description": "Production-style event-driven microservices order processing platform",
+  "author": "Antigravity Engineer",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build:gateway": "nest build api-gateway",
+    "build:order": "nest build order-service",
+    "build:inventory": "nest build inventory-service",
+    "build:notification": "nest build notification-service",
+    "build": "nest build api-gateway && nest build order-service && nest build inventory-service && nest build notification-service",
+    "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
+    "start:gateway": "nest start api-gateway",
+    "start:gateway:dev": "nest start api-gateway --watch",
+    "start:order": "nest start order-service",
+    "start:order:dev": "nest start order-service --watch",
+    "start:inventory": "nest start inventory-service",
+    "start:inventory:dev": "nest start inventory-service --watch",
+    "start:notification": "nest start notification-service",
+    "start:notification:dev": "nest start notification-service --watch",
+    "lint": "prettier --check \"apps/**/*.ts\" \"libs/**/*.ts\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "seed": "ts-node -r tsconfig-paths/register scripts/seed.ts",
+    "e2e": "ts-node -r tsconfig-paths/register scripts/e2e.ts"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.6",
+    "@grpc/proto-loader": "^0.8.1",
+    "@nestjs/common": "^11.2.8",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.2.8",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/microservices": "^11.2.8",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.2.8",
+    "@nestjs/swagger": "^11.4.7",
+    "@nestjs/typeorm": "^11.0.3",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "joi": "^18.3.0",
+    "kafkajs": "^2.2.4",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1",
+    "typeorm": "^1.1.2",
+    "uuid": "^14.0.3"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/schematics": "^12.0.0",
+    "@nestjs/testing": "^11.2.8",
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/supertest": "^7.0.0",
+    "@types/uuid": "^10.0.0",
+    "jest": "^30.5.2",
+    "prettier": "^3.4.2",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.4.15",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.2"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "apps/**/*.(t|j)s",
+      "libs/**/*.(t|j)s",
+      "!**/*.module.(t|j)s",
+      "!**/main.(t|j)s"
+    ],
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
+    ],
+    "moduleNameMapper": {
+      "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1"
+    }
+  }
+}

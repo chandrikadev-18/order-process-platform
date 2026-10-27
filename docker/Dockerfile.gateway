@@ -1,0 +1,32 @@
+# Multi-stage Dockerfile for api-gateway
+FROM node:20-alpine AS builder
+
+WORKDIR /usr/src/app
+
+COPY package*.json tsconfig*.json nest-cli.json ./
+RUN npm ci
+
+COPY proto ./proto
+COPY libs ./libs
+COPY apps/api-gateway ./apps/api-gateway
+
+RUN npx nest build api-gateway
+
+# Production runtime stage
+FROM node:20-alpine AS runner
+
+WORKDIR /usr/src/app
+ENV NODE_ENV=production
+
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=builder /usr/src/app/dist/apps/api-gateway ./dist/apps/api-gateway
+COPY --from=builder /usr/src/app/proto ./proto
+
+# Non-root user for security compliance
+USER node
+
+EXPOSE 3000
+
+CMD ["node", "dist/apps/api-gateway/apps/api-gateway/src/main.js"]

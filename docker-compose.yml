@@ -1,0 +1,223 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: opp-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opp-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: opp-kafka
+    restart: always
+    ports:
+      - '9092:9092'
+      - '29092:29092'
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:29092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      CLUSTER_ID: '4L622nShTUiBenYhEu6jvA'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    healthcheck:
+      test: ['CMD-SHELL', 'kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - opp-network
+
+  init-kafka-topics:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: opp-init-kafka-topics
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command: |
+      "
+      echo 'Waiting for Kafka to be ready...'
+      kafka-topics --bootstrap-server kafka:9092 --list
+
+      echo 'Creating topics with 3 partitions...'
+      for topic in order.created order.created.dlq \
+                   inventory.reserved inventory.reserved.dlq \
+                   inventory.failed inventory.failed.dlq \
+                   order.confirmed order.confirmed.dlq \
+                   order.rejected order.rejected.dlq \
+                   order.cancelled order.cancelled.dlq; do
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1
+      done
+
+      echo 'All topics successfully created:'
+      kafka-topics --bootstrap-server kafka:9092 --list
+      "
+    networks:
+      - opp-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: opp-kafka-ui
+    restart: always
+    ports:
+      - '8080:8080'
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-kraft
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - opp-network
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.inventory
+    container_name: opp-inventory-service
+    restart: always
+    ports:
+      - '50052:50052'
+    environment:
+      PORT: 3002
+      GRPC_PORT: 50052
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: inventory_db
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: inventory-service
+      KAFKA_GROUP_ID: inventory-service-group
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - opp-network
+
+  order-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: opp-order-service
+    restart: always
+    ports:
+      - '50051:50051'
+    environment:
+      PORT: 3001
+      GRPC_PORT: 50051
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: order_db
+      INVENTORY_GRPC_URL: inventory-service:50052
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: order-service
+      KAFKA_GROUP_ID: order-service-group
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+    networks:
+      - opp-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.notification
+    container_name: opp-notification-service
+    restart: always
+    environment:
+      PORT: 3003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: notification_db
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: notification-service
+      KAFKA_GROUP_ID: notification-service-group
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - opp-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: opp-api-gateway
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+      JWT_SECRET: super-secret-jwt-key-for-development-antigravity
+      JWT_EXPIRES_IN: 24h
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: gateway_db
+      ORDER_GRPC_URL: order-service:50051
+      INVENTORY_GRPC_URL: inventory-service:50052
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+    networks:
+      - opp-network
+
+networks:
+  opp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  kafka_data:

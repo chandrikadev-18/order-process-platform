@@ -1,0 +1,32 @@
+# Multi-stage Dockerfile for order-service
+FROM node:20-alpine AS builder
+
+WORKDIR /usr/src/app
+
+COPY package*.json tsconfig*.json nest-cli.json ./
+RUN npm ci
+
+COPY proto ./proto
+COPY libs ./libs
+COPY apps/order-service ./apps/order-service
+
+RUN npx nest build order-service
+
+# Production runtime stage
+FROM node:20-alpine AS runner
+
+WORKDIR /usr/src/app
+ENV NODE_ENV=production
+
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+COPY --from=builder /usr/src/app/dist/apps/order-service ./dist/apps/order-service
+COPY --from=builder /usr/src/app/proto ./proto
+
+# Non-root user for security compliance
+USER node
+
+EXPOSE 50051
+
+CMD ["node", "dist/apps/order-service/apps/order-service/src/main.js"]
