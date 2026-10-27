@@ -16,6 +16,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { ProductsController } from './products/products.controller';
 import { OrdersController } from './orders/orders.controller';
 import { HealthController } from './health/health.controller';
+import { DashboardController } from './dashboard/dashboard.controller';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { HealthController } from './health/health.controller';
     ]),
   ],
   controllers: [
+    DashboardController,
     AuthController,
     ProductsController,
     OrdersController,
